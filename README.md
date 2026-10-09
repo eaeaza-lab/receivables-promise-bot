@@ -21,3 +21,10 @@ python -m unittest discover -s tests -v
 ```
 
 All future data is synthetic and the application will not use the network at runtime.
+
+## Current capability
+
+The local SQLite ledger stores synthetic invoices and promise-to-pay records.
+It rejects promises for unknown invoices and supports recording an invoice as paid.
+The Telegram-style transport, missed-promise monitoring, and report exports are not
+available yet.
