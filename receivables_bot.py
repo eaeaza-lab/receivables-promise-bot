@@ -129,6 +129,75 @@ class LedgerRepository:
         ]
 
 
+class MockTelegramTransport:
+    """Handle a small, local subset of Telegram-style collection commands.
+
+    Messages are parsed locally and never leave the process. A message that is
+    incomplete or unclear is rejected with the exact command format required;
+    it must not create or change a ledger record.
+    """
+
+    HELP_TEXT = (
+        "Commands: /invoice <reference> <amount_cents> <days_overdue>; "
+        "/promise <invoice_reference> <amount_cents> <YYYY-MM-DD>; "
+        "/paid <invoice_reference>. All data is synthetic and local."
+    )
+
+    def __init__(self, ledger: LedgerRepository) -> None:
+        self.ledger = ledger
+
+    def handle_message(self, message: str) -> str:
+        """Process one local message and return a concise mock-chat response."""
+        parts = message.strip().split()
+        if not parts:
+            return self._clarify()
+
+        command = parts[0].lower()
+        if command == "/help":
+            return self.HELP_TEXT if len(parts) == 1 else self._clarify("/help")
+        if command == "/invoice":
+            return self._add_invoice(parts)
+        if command == "/promise":
+            return self._record_promise(parts)
+        if command == "/paid":
+            return self._mark_paid(parts)
+        return self._clarify()
+
+    def _add_invoice(self, parts: list[str]) -> str:
+        if len(parts) != 4:
+            return self._clarify("/invoice <reference> <amount_cents> <days_overdue>")
+        try:
+            invoice = Invoice(parts[1], int(parts[2]), int(parts[3]))
+            self.ledger.add_invoice(invoice)
+        except (ValueError, sqlite3.IntegrityError):
+            return self._clarify("/invoice <reference> <positive amount_cents> <non-negative days_overdue>")
+        return f"Saved synthetic invoice {invoice.reference}."
+
+    def _record_promise(self, parts: list[str]) -> str:
+        if len(parts) != 4:
+            return self._clarify("/promise <invoice_reference> <amount_cents> <YYYY-MM-DD>")
+        try:
+            promise = PromiseToPay(parts[1], int(parts[2]), date.fromisoformat(parts[3]))
+            saved = self.ledger.record_promise(promise)
+        except (ValueError, sqlite3.IntegrityError):
+            return self._clarify(
+                "/promise <existing invoice_reference> <positive amount_cents> <YYYY-MM-DD>"
+            )
+        return f"Saved promise #{saved.id} for synthetic invoice {saved.invoice_reference}."
+
+    def _mark_paid(self, parts: list[str]) -> str:
+        if len(parts) != 2:
+            return self._clarify("/paid <invoice_reference>")
+        if not self.ledger.mark_invoice_paid(parts[1]):
+            return "No synthetic invoice matches that reference; please check it and try again."
+        return f"Marked synthetic invoice {parts[1]} as paid."
+
+    def _clarify(self, format_hint: str | None = None) -> str:
+        if format_hint is None:
+            return f"I need a complete command before changing the ledger. {self.HELP_TEXT}"
+        return f"I need a complete command before changing the ledger. Use {format_hint}."
+
+
 def invoice_status(invoice: Invoice) -> str:
     """Return the current collection status for a synthetic invoice."""
     if invoice.paid:

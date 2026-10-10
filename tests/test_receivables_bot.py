@@ -2,7 +2,13 @@ import unittest
 from datetime import date
 import sqlite3
 
-from receivables_bot import Invoice, LedgerRepository, PromiseToPay, invoice_status
+from receivables_bot import (
+    Invoice,
+    LedgerRepository,
+    MockTelegramTransport,
+    PromiseToPay,
+    invoice_status,
+)
 
 
 class InvoiceStatusTests(unittest.TestCase):
@@ -40,6 +46,43 @@ class LedgerRepositoryTests(unittest.TestCase):
             self.ledger.record_promise(
                 PromiseToPay("SYN-MISSING", 10_00, date(2026, 10, 15))
             )
+
+
+class MockTelegramTransportTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.ledger = LedgerRepository()
+        self.addCleanup(self.ledger.close)
+        self.transport = MockTelegramTransport(self.ledger)
+
+    def test_complete_commands_update_the_local_ledger(self) -> None:
+        self.assertEqual(
+            self.transport.handle_message("/invoice SYN-4001 12500 14"),
+            "Saved synthetic invoice SYN-4001.",
+        )
+        self.assertEqual(
+            self.transport.handle_message("/promise SYN-4001 12500 2026-10-15"),
+            "Saved promise #1 for synthetic invoice SYN-4001.",
+        )
+        self.assertEqual(
+            self.transport.handle_message("/paid SYN-4001"),
+            "Marked synthetic invoice SYN-4001 as paid.",
+        )
+        self.assertTrue(self.ledger.get_invoice("SYN-4001").paid)
+
+    def test_ambiguous_or_invalid_messages_do_not_change_the_ledger(self) -> None:
+        response = self.transport.handle_message("record a payment promise")
+        self.assertIn("I need a complete command", response)
+        self.assertEqual(self.ledger.list_promises(), [])
+
+        response = self.transport.handle_message("/invoice SYN-4002 9000")
+        self.assertIn("/invoice <reference> <amount_cents> <days_overdue>", response)
+        self.assertIsNone(self.ledger.get_invoice("SYN-4002"))
+
+    def test_invalid_promise_for_unknown_invoice_requests_clarification(self) -> None:
+        response = self.transport.handle_message("/promise SYN-MISSING 1000 2026-10-15")
+
+        self.assertIn("existing invoice_reference", response)
+        self.assertEqual(self.ledger.list_promises(), [])
 
 
 if __name__ == "__main__":

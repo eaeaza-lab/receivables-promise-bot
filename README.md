@@ -8,7 +8,7 @@ Built by a supervised autonomous agent pipeline (nightshift).
 
 ## Run
 
-Requires Python 3. Run the current skeleton:
+Requires Python 3. Run the local command guide:
 
 ```text
 python app.py
@@ -24,7 +24,15 @@ All future data is synthetic and the application will not use the network at run
 
 ## Current capability
 
-The local SQLite ledger stores synthetic invoices and promise-to-pay records.
-It rejects promises for unknown invoices and supports recording an invoice as paid.
-The Telegram-style transport, missed-promise monitoring, and report exports are not
-available yet.
+The local SQLite ledger stores synthetic invoices and promise-to-pay records. The
+local mock Telegram-style transport accepts the following explicit commands:
+
+```text
+/invoice SYN-1001 12500 14
+/promise SYN-1001 12500 2026-10-15
+/paid SYN-1001
+```
+
+Ambiguous or incomplete messages request clarification and never alter the ledger.
+The transport is local only: Telegram and every other external integration remain
+unavailable. Missed-promise monitoring and report exports are not available yet.
