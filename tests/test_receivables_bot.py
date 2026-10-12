@@ -47,6 +47,26 @@ class LedgerRepositoryTests(unittest.TestCase):
                 PromiseToPay("SYN-MISSING", 10_00, date(2026, 10, 15))
             )
 
+    def test_missed_promises_only_include_past_commitments_on_unpaid_invoices(self) -> None:
+        self.ledger.add_invoice(Invoice("SYN-3003", 60_00, 4))
+        self.ledger.add_invoice(Invoice("SYN-3004", 70_00, 5))
+        self.ledger.add_invoice(Invoice("SYN-3005", 80_00, 6))
+        missed = self.ledger.record_promise(
+            PromiseToPay("SYN-3003", 60_00, date(2026, 10, 10))
+        )
+        self.ledger.record_promise(
+            PromiseToPay("SYN-3003", 60_00, date(2026, 10, 12))
+        )
+        self.ledger.record_promise(
+            PromiseToPay("SYN-3004", 70_00, date(2026, 10, 10))
+        )
+        self.ledger.record_promise(
+            PromiseToPay("SYN-3005", 80_00, date(2026, 10, 13))
+        )
+        self.ledger.mark_invoice_paid("SYN-3004")
+
+        self.assertEqual(self.ledger.list_missed_promises(date(2026, 10, 12)), [missed])
+
 
 class MockTelegramTransportTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -83,6 +103,24 @@ class MockTelegramTransportTests(unittest.TestCase):
 
         self.assertIn("existing invoice_reference", response)
         self.assertEqual(self.ledger.list_promises(), [])
+
+    def test_missed_command_lists_only_past_promises_on_unpaid_invoices(self) -> None:
+        self.transport.handle_message("/invoice SYN-4003 10000 8")
+        self.transport.handle_message("/invoice SYN-4004 10000 8")
+        self.transport.handle_message("/promise SYN-4003 10000 2026-10-10")
+        self.transport.handle_message("/promise SYN-4003 10000 2026-10-12")
+        self.transport.handle_message("/promise SYN-4004 10000 2026-10-10")
+        self.transport.handle_message("/paid SYN-4004")
+
+        self.assertEqual(
+            self.transport.handle_message("/missed 2026-10-12"),
+            "Missed synthetic promises: #1 for synthetic invoice SYN-4003.",
+        )
+
+    def test_invalid_missed_command_requests_clarification(self) -> None:
+        response = self.transport.handle_message("/missed 12-10-2026")
+
+        self.assertIn("/missed <YYYY-MM-DD>", response)
 
 
 if __name__ == "__main__":

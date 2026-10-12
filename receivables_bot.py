@@ -128,6 +128,26 @@ class LedgerRepository:
             for row in rows
         ]
 
+    def list_missed_promises(self, as_of: date) -> list[PromiseToPay]:
+        """Return promises due before ``as_of`` whose invoices remain unpaid.
+
+        A commitment due on the as-of date is still due, rather than missed.
+        """
+        rows = self.connection.execute(
+            """
+            SELECT promise.id, promise.invoice_reference, promise.amount_cents, promise.due_on
+            FROM promises_to_pay AS promise
+            JOIN invoices AS invoice ON invoice.reference = promise.invoice_reference
+            WHERE promise.due_on < ? AND invoice.paid = 0
+            ORDER BY promise.due_on, promise.id
+            """,
+            (as_of.isoformat(),),
+        ).fetchall()
+        return [
+            PromiseToPay(row["invoice_reference"], row["amount_cents"], date.fromisoformat(row["due_on"]), row["id"])
+            for row in rows
+        ]
+
 
 class MockTelegramTransport:
     """Handle a small, local subset of Telegram-style collection commands.
@@ -140,7 +160,8 @@ class MockTelegramTransport:
     HELP_TEXT = (
         "Commands: /invoice <reference> <amount_cents> <days_overdue>; "
         "/promise <invoice_reference> <amount_cents> <YYYY-MM-DD>; "
-        "/paid <invoice_reference>. All data is synthetic and local."
+        "/paid <invoice_reference>; /missed <YYYY-MM-DD>. "
+        "All data is synthetic and local."
     )
 
     def __init__(self, ledger: LedgerRepository) -> None:
@@ -161,6 +182,8 @@ class MockTelegramTransport:
             return self._record_promise(parts)
         if command == "/paid":
             return self._mark_paid(parts)
+        if command == "/missed":
+            return self._list_missed_promises(parts)
         return self._clarify()
 
     def _add_invoice(self, parts: list[str]) -> str:
@@ -191,6 +214,21 @@ class MockTelegramTransport:
         if not self.ledger.mark_invoice_paid(parts[1]):
             return "No synthetic invoice matches that reference; please check it and try again."
         return f"Marked synthetic invoice {parts[1]} as paid."
+
+    def _list_missed_promises(self, parts: list[str]) -> str:
+        if len(parts) != 2:
+            return self._clarify("/missed <YYYY-MM-DD>")
+        try:
+            missed = self.ledger.list_missed_promises(date.fromisoformat(parts[1]))
+        except ValueError:
+            return self._clarify("/missed <YYYY-MM-DD>")
+        if not missed:
+            return "No missed synthetic promises as of that date."
+        references = ", ".join(
+            f"#{promise.id} for synthetic invoice {promise.invoice_reference}"
+            for promise in missed
+        )
+        return f"Missed synthetic promises: {references}."
 
     def _clarify(self, format_hint: str | None = None) -> str:
         if format_hint is None:

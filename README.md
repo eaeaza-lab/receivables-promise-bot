@@ -31,8 +31,12 @@ local mock Telegram-style transport accepts the following explicit commands:
 /invoice SYN-1001 12500 14
 /promise SYN-1001 12500 2026-10-15
 /paid SYN-1001
+/missed 2026-10-16
 ```
 
 Ambiguous or incomplete messages request clarification and never alter the ledger.
-The transport is local only: Telegram and every other external integration remain
-unavailable. Missed-promise monitoring and report exports are not available yet.
+Use `/missed <YYYY-MM-DD>` to list commitments that were due before that date
+while their synthetic invoices remain unpaid; commitments due on the supplied
+date are not yet missed. The transport is local only: Telegram and every other
+external integration remain unavailable. Daily report exports are not available
+yet.
