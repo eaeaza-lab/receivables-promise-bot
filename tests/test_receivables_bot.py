@@ -1,12 +1,16 @@
 import unittest
 from datetime import date
+import csv
+from pathlib import Path
 import sqlite3
+from tempfile import TemporaryDirectory
 
 from receivables_bot import (
     Invoice,
     LedgerRepository,
     MockTelegramTransport,
     PromiseToPay,
+    export_daily_collections_summary,
     invoice_status,
 )
 
@@ -121,6 +125,85 @@ class MockTelegramTransportTests(unittest.TestCase):
         response = self.transport.handle_message("/missed 12-10-2026")
 
         self.assertIn("/missed <YYYY-MM-DD>", response)
+
+    def test_report_command_exports_both_local_formats(self) -> None:
+        self.transport.handle_message("/invoice SYN-4005 10000 8")
+        with TemporaryDirectory() as output_directory:
+            response = self.transport.handle_message(f"/report 2026-10-12 {output_directory}")
+
+            self.assertIn("Saved local daily collections report:", response)
+            self.assertTrue((Path(output_directory) / "collections-summary-2026-10-12.csv").exists())
+            self.assertTrue((Path(output_directory) / "collections-summary-2026-10-12.html").exists())
+
+
+class DailyCollectionsReportTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.ledger = LedgerRepository()
+        self.addCleanup(self.ledger.close)
+
+    def test_export_contains_actionable_unpaid_overdue_invoices_in_csv_and_html(self) -> None:
+        self.ledger.add_invoice(Invoice("SYN-<5001>", 12_500, 9))
+        self.ledger.add_invoice(Invoice("SYN-5002", 8_000, 4))
+        self.ledger.add_invoice(Invoice("SYN-5003", 6_000, 3))
+        self.ledger.add_invoice(Invoice("SYN-5004", 7_000, 0))
+        self.ledger.record_promise(PromiseToPay("SYN-<5001>", 12_500, date(2026, 10, 10)))
+        self.ledger.record_promise(PromiseToPay("SYN-5002", 8_000, date(2026, 10, 12)))
+        self.ledger.mark_invoice_paid("SYN-5003")
+
+        with TemporaryDirectory() as output_directory:
+            html_path, csv_path = export_daily_collections_summary(
+                self.ledger, date(2026, 10, 12), output_directory
+            )
+
+            with csv_path.open(newline="", encoding="utf-8") as csv_file:
+                report_rows = list(csv.DictReader(csv_file))
+            html = html_path.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            report_rows,
+            [
+                {
+                    "report_date": "2026-10-12",
+                    "invoice_reference": "SYN-<5001>",
+                    "invoice_amount_cents": "12500",
+                    "days_overdue": "9",
+                    "promise_id": "1",
+                    "promise_amount_cents": "12500",
+                    "promise_due_on": "2026-10-10",
+                    "status": "missed",
+                },
+                {
+                    "report_date": "2026-10-12",
+                    "invoice_reference": "SYN-5002",
+                    "invoice_amount_cents": "8000",
+                    "days_overdue": "4",
+                    "promise_id": "2",
+                    "promise_amount_cents": "8000",
+                    "promise_due_on": "2026-10-12",
+                    "status": "due today",
+                },
+            ],
+        )
+        self.assertIn(
+            "Unpaid overdue invoices: 2; actionable rows: 2; missed commitments: 1; due today: 1.",
+            html,
+        )
+        self.assertIn("SYN-&lt;5001&gt;", html)
+        self.assertNotIn("SYN-5003", html)
+        self.assertNotIn("SYN-5004", html)
+
+    def test_export_keeps_unpromised_overdue_invoice_visible_for_follow_up(self) -> None:
+        self.ledger.add_invoice(Invoice("SYN-5005", 9_000, 2))
+
+        with TemporaryDirectory() as output_directory:
+            _, csv_path = export_daily_collections_summary(
+                self.ledger, date(2026, 10, 12), output_directory
+            )
+            with csv_path.open(newline="", encoding="utf-8") as csv_file:
+                report_rows = list(csv.DictReader(csv_file))
+
+        self.assertEqual(report_rows[0]["status"], "needs follow-up")
+        self.assertEqual(report_rows[0]["promise_id"], "")
 
 
 if __name__ == "__main__":

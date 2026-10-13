@@ -32,11 +32,19 @@ local mock Telegram-style transport accepts the following explicit commands:
 /promise SYN-1001 12500 2026-10-15
 /paid SYN-1001
 /missed 2026-10-16
+/report 2026-10-16 reports
 ```
 
 Ambiguous or incomplete messages request clarification and never alter the ledger.
 Use `/missed <YYYY-MM-DD>` to list commitments that were due before that date
 while their synthetic invoices remain unpaid; commitments due on the supplied
 date are not yet missed. The transport is local only: Telegram and every other
-external integration remain unavailable. Daily report exports are not available
-yet.
+external integration remain unavailable.
+
+`/report <YYYY-MM-DD> <output_directory>` writes a daily collections queue to
+both `collections-summary-YYYY-MM-DD.html` and
+`collections-summary-YYYY-MM-DD.csv`. It includes each unpaid overdue synthetic
+invoice, including those with no promise, and labels commitments as missed, due
+today, or upcoming. The HTML report escapes synthetic references; the CSV is
+ready for spreadsheet review. Re-running a report for the same date replaces
+that date's two local files.
