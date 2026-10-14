@@ -1,7 +1,7 @@
 """Core types and SQLite storage for an offline, synthetic receivables workflow."""
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 import csv
 from html import escape
 from pathlib import Path
@@ -204,6 +204,31 @@ class LedgerRepository:
                 )
             )
         return result
+
+
+def seed_demo_scenarios(ledger: LedgerRepository, as_of: date) -> None:
+    """Add a deterministic synthetic collections walkthrough to an empty ledger.
+
+    The set intentionally covers each daily-queue state, plus a paid invoice
+    that demonstrates why settled work is excluded.  It is intended for a
+    fresh local demo ledger; callers that seed a persistent ledger should do so
+    once to avoid duplicate invoice references.
+    """
+    invoices = [
+        Invoice("DEMO-1001", 12_500, 12),
+        Invoice("DEMO-1002", 8_400, 7),
+        Invoice("DEMO-1003", 6_200, 3),
+        Invoice("DEMO-1004", 4_900, 1),
+        Invoice("DEMO-1005", 7_100, 9),
+    ]
+    for invoice in invoices:
+        ledger.add_invoice(invoice)
+
+    ledger.record_promise(PromiseToPay("DEMO-1001", 12_500, as_of - timedelta(days=2)))
+    ledger.record_promise(PromiseToPay("DEMO-1002", 8_400, as_of))
+    ledger.record_promise(PromiseToPay("DEMO-1003", 6_200, as_of + timedelta(days=3)))
+    ledger.record_promise(PromiseToPay("DEMO-1005", 7_100, as_of - timedelta(days=1)))
+    ledger.mark_invoice_paid("DEMO-1005")
 
 
 def export_daily_collections_summary(

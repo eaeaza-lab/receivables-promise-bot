@@ -2,7 +2,7 @@
 
 An offline Telegram-style prototype for tracking synthetic overdue invoices, recording payment promises, spotting missed commitments, and preparing daily collections reports.
 
-**Status:** work in progress
+**Status:** polish
 
 Built by a supervised autonomous agent pipeline (nightshift).
 
@@ -21,6 +21,29 @@ python -m unittest discover -s tests -v
 ```
 
 All future data is synthetic and the application will not use the network at runtime.
+
+## Demo
+
+Running `python app.py` creates an in-memory, synthetic demo for the current
+local date. It presents four unpaid overdue invoices: one missed commitment,
+one commitment due today, one upcoming commitment, and one invoice needing a
+promise. A fifth, paid synthetic invoice demonstrates that settled work is
+excluded from the queue.
+
+Sample output:
+
+```text
+Receivables Promise-to-Pay Bot — local synthetic demo
+Demo date: 2026-10-14
+Actionable queue: 4 unpaid overdue invoices — 1 missed, 1 due today, 1 upcoming, 1 needing follow-up.
+Demo references: DEMO-1001 (missed), DEMO-1002 (due today), DEMO-1003 (upcoming), DEMO-1004 (no promise).
+```
+
+The command formats printed by the demo are handled by the local
+`MockTelegramTransport` in code; they are intentionally not real Telegram
+messages. For example, an embedding application can send `/missed 2026-10-14`
+or `/report 2026-10-14 reports` to the mock transport. All output remains
+local, and external integrations are unavailable.
 
 ## Current capability
 

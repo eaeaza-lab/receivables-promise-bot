@@ -12,6 +12,7 @@ from receivables_bot import (
     PromiseToPay,
     export_daily_collections_summary,
     invoice_status,
+    seed_demo_scenarios,
 )
 
 
@@ -204,6 +205,26 @@ class DailyCollectionsReportTests(unittest.TestCase):
 
         self.assertEqual(report_rows[0]["status"], "needs follow-up")
         self.assertEqual(report_rows[0]["promise_id"], "")
+
+
+class DemoScenarioTests(unittest.TestCase):
+    def test_seeded_demo_covers_queue_states_and_excludes_paid_work(self) -> None:
+        ledger = LedgerRepository()
+        self.addCleanup(ledger.close)
+        as_of = date(2026, 10, 14)
+
+        seed_demo_scenarios(ledger, as_of)
+
+        self.assertEqual(
+            [(row.invoice_reference, row.status) for row in ledger.list_daily_collections_rows(as_of)],
+            [
+                ("DEMO-1001", "missed"),
+                ("DEMO-1002", "due today"),
+                ("DEMO-1003", "upcoming"),
+                ("DEMO-1004", "needs follow-up"),
+            ],
+        )
+        self.assertTrue(ledger.get_invoice("DEMO-1005").paid)
 
 
 if __name__ == "__main__":
