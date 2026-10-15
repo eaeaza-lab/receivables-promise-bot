@@ -381,7 +381,7 @@ class MockTelegramTransport:
         if len(parts) != 2:
             return self._clarify("/missed <YYYY-MM-DD>")
         try:
-            missed = self.ledger.list_missed_promises(date.fromisoformat(parts[1]))
+            missed = self.ledger.list_missed_promises(_parse_command_date(parts[1]))
         except ValueError:
             return self._clarify("/missed <YYYY-MM-DD>")
         if not missed:
@@ -396,7 +396,7 @@ class MockTelegramTransport:
         if len(parts) != 3:
             return self._clarify("/report <YYYY-MM-DD> <output_directory>")
         try:
-            report_date = date.fromisoformat(parts[1])
+            report_date = _parse_command_date(parts[1])
             html_path, csv_path = export_daily_collections_summary(self.ledger, report_date, parts[2])
         except (OSError, ValueError):
             return self._clarify("/report <YYYY-MM-DD> <writable_output_directory>")
@@ -406,6 +406,13 @@ class MockTelegramTransport:
         if format_hint is None:
             return f"I need a complete command before changing the ledger. {self.HELP_TEXT}"
         return f"I need a complete command before changing the ledger. Use {format_hint}."
+
+
+def _parse_command_date(value: str) -> date:
+    """Parse the explicitly documented, hyphenated command date format."""
+    if len(value) != 10 or value[4] != "-" or value[7] != "-":
+        raise ValueError("date must use YYYY-MM-DD")
+    return date.fromisoformat(value)
 
 
 def invoice_status(invoice: Invoice) -> str:

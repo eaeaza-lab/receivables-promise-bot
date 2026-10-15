@@ -127,6 +127,22 @@ class MockTelegramTransportTests(unittest.TestCase):
 
         self.assertIn("/missed <YYYY-MM-DD>", response)
 
+    def test_compact_iso_date_is_rejected_without_changing_the_ledger(self) -> None:
+        self.transport.handle_message("/invoice SYN-4006 10000 8")
+        self.transport.handle_message("/promise SYN-4006 10000 2026-10-10")
+
+        response = self.transport.handle_message("/missed 20261012")
+
+        self.assertIn("/missed <YYYY-MM-DD>", response)
+        self.assertEqual(len(self.ledger.list_promises("SYN-4006")), 1)
+
+    def test_compact_report_date_is_rejected_without_creating_output(self) -> None:
+        with TemporaryDirectory() as output_directory:
+            response = self.transport.handle_message(f"/report 20261012 {output_directory}")
+
+            self.assertIn("/report <YYYY-MM-DD>", response)
+            self.assertEqual(list(Path(output_directory).iterdir()), [])
+
     def test_report_command_exports_both_local_formats(self) -> None:
         self.transport.handle_message("/invoice SYN-4005 10000 8")
         with TemporaryDirectory() as output_directory:
@@ -205,6 +221,32 @@ class DailyCollectionsReportTests(unittest.TestCase):
 
         self.assertEqual(report_rows[0]["status"], "needs follow-up")
         self.assertEqual(report_rows[0]["promise_id"], "")
+
+    def test_export_handles_an_empty_queue_and_multiple_promises_per_invoice(self) -> None:
+        self.ledger.add_invoice(Invoice("SYN-5006", 9_000, 2))
+        self.ledger.record_promise(PromiseToPay("SYN-5006", 4_000, date(2026, 10, 10)))
+        self.ledger.record_promise(PromiseToPay("SYN-5006", 5_000, date(2026, 10, 13)))
+
+        with TemporaryDirectory() as output_directory:
+            html_path, csv_path = export_daily_collections_summary(
+                self.ledger, date(2026, 10, 12), output_directory
+            )
+            with csv_path.open(newline="", encoding="utf-8") as csv_file:
+                report_rows = list(csv.DictReader(csv_file))
+            html = html_path.read_text(encoding="utf-8")
+
+        self.assertEqual([row["status"] for row in report_rows], ["missed", "upcoming"])
+        self.assertIn("Unpaid overdue invoices: 1; actionable rows: 2; missed commitments: 1; due today: 0.", html)
+
+        empty_ledger = LedgerRepository()
+        self.addCleanup(empty_ledger.close)
+        with TemporaryDirectory() as output_directory:
+            html_path, csv_path = export_daily_collections_summary(
+                empty_ledger, date(2026, 10, 12), output_directory
+            )
+            with csv_path.open(newline="", encoding="utf-8") as csv_file:
+                self.assertEqual(list(csv.DictReader(csv_file)), [])
+            self.assertIn("Unpaid overdue invoices: 0; actionable rows: 0", html_path.read_text(encoding="utf-8"))
 
 
 class DemoScenarioTests(unittest.TestCase):

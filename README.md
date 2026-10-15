@@ -59,7 +59,7 @@ local mock Telegram-style transport accepts the following explicit commands:
 ```
 
 Ambiguous or incomplete messages request clarification and never alter the ledger.
-Use `/missed <YYYY-MM-DD>` to list commitments that were due before that date
+Use `/missed <YYYY-MM-DD>` (exactly hyphenated, for example `2026-10-16`) to list commitments that were due before that date
 while their synthetic invoices remain unpaid; commitments due on the supplied
 date are not yet missed. The transport is local only: Telegram and every other
 external integration remain unavailable.

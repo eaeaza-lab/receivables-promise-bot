@@ -8,7 +8,7 @@
 - [x] **M3 commitment monitoring** *(mvp)* -- Identify missed promises against unpaid invoices. Acceptance: `python -m unittest discover -s tests -v`
 - [x] **M4 reports** *(mvp)* -- Export the daily collections summary as HTML and CSV. Acceptance: `python -m unittest discover -s tests -v`
 - [x] **M5 demo polish** *(polish)* -- Add seeded demo scenarios, clearer CLI output, and usage examples. Acceptance: `python -m unittest discover -s tests -v`
-- [ ] **M6 quality pass** *(polish)* -- Expand edge-case coverage and review documentation. Acceptance: `python -m unittest discover -s tests -v`
+- [x] **M6 quality pass** *(polish)* -- Expand edge-case coverage and review documentation. Acceptance: `python -m unittest discover -s tests -v`
 
 ## Progress log
 
@@ -18,6 +18,7 @@
 - 2026-10-12 -- M3 completed: added local missed-promise monitoring that excludes paid invoices and distinguishes due-today commitments from missed ones.
 - 2026-10-13 -- M4 completed: added local HTML and CSV daily collections exports for unpaid overdue synthetic invoices, including actionable promise states and a mock `/report` command.
 - 2026-10-14 -- M5 completed: added a deterministic synthetic demo queue, clearer default CLI walkthrough, usage examples, and coverage for all demo queue states.
+- 2026-10-15 -- M6 completed: added strict documented command-date validation, report edge-case coverage for empty queues and multiple commitments, and refreshed the demo documentation.
 
 ## Decision log
 
@@ -30,3 +31,4 @@
 - 2026-10-13 -- Report one row per unpaid overdue invoice commitment (or one no-promise row) so the daily queue preserves every actionable commitment while still surfacing invoices that need follow-up.
 - 2026-10-13 -- Name report files by their explicit as-of date and replace same-date exports, making repeated local report generation predictable.
 - 2026-10-14 -- Seed the demo relative to the local run date so its missed, due-today, upcoming, and no-promise examples remain understandable without external data or a scheduler.
+- 2026-10-15 -- Require the exact hyphenated YYYY-MM-DD form at the mock command boundary, even where Python accepts compact ISO dates, so validation matches the user-facing command documentation.
