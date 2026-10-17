@@ -2,7 +2,7 @@
 
 An offline Telegram-style prototype for tracking synthetic overdue invoices, recording payment promises, spotting missed commitments, and preparing daily collections reports.
 
-**Status:** polish
+**Status:** release candidate — feature-complete on synthetic data, under final review.
 
 Built by a supervised autonomous agent pipeline (nightshift).
 
@@ -71,3 +71,7 @@ invoice, including those with no promise, and labels commitments as missed, due
 today, or upcoming. The HTML report escapes synthetic references; the CSV is
 ready for spreadsheet review. Re-running a report for the same date replaces
 that date's two local files.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
